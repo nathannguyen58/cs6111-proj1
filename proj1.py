@@ -8,20 +8,24 @@ def getResults(res):
     titleList = []
     urlList = []
 
-
+    counter = 1
 
 
     for result in res.get('items'):
+        print(res.get('items'))
         currentTitle = result.get('title')
-        currentUrl = result.get('displayLink')
+        currentUrl = result.get('formattedUrl')
         currentDescription = result.get('snippet')
         
+        print("Result", counter)
+        print("[")
+        print("URL:", currentUrl)
+        print("Title:", currentTitle)
+        print("Summary:", currentDescription)
+        print("]")
+        
 
-        print(currentTitle)
-        print(currentDescription)
-        print(currentUrl)
-
-        prompt = input("Is this relevant (Y/N)?")
+        prompt = input("Relevant (Y/N)?")
         
         if (prompt == "Y"):
             descriptionList.append(currentDescription)
@@ -29,6 +33,7 @@ def getResults(res):
             urlList.append(currentUrl)
 
         print("")
+        counter += 1
     
     commonWords = defaultdict(int)
 
@@ -59,12 +64,6 @@ def main():
     res = service.cse().list(q = args[3], cx = args[1],).execute()
 
     getResults(res)
-    
-
-    #for item in res:
-        #pprint.pprint(item.queries)
-
-    #pprint.pprint(res)
 
 if __name__ == "__main__":
     main()
