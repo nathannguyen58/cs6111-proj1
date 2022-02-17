@@ -78,11 +78,6 @@ def processQuery(service, engineID, query, precision):
 
         createTFIDFVectorList(queryVector, relevantDocumentVector, relevanttfIdfVectorizer, relevantDocumenttfIdf)
         createTFIDFVectorList(queryVector, nonrelevantDocumentVector, nonrelevanttfIdfVectorizer, nonrelevantDocumenttfIdf)
-
-        for word in queryVector.keys():
-            queryVector[word] = constants.ALPHA * queryVector[word] + (constants.BETA * relevantVector[word])/len(relevantDocumentDataSet) - (constants.GAMMA * nonrelevantVector[word])/len(nonrelevantDocumentDataSet)
-            if queryVector[word] < 0:
-                queryVector[word] = 0
         
         sortedKeys = rocchio(queryVector, relevantDocumentVector, relevantDocumentDataSet, nonrelevantVector, nonrelevantDocumentDataSet)
 
