@@ -5,7 +5,7 @@ import constants
 
 nltk.download('punkt')
 
-def processQuery(service, engineID, query, precision):
+def processQuery(service, engineID, query, precision, api):
     queryWords = set(query.lower().split(' '))  #tracks the words already in the query
     queryVector = defaultdict(int)      #tracks the current query vector, key: word, value: tf_idf weight
 
@@ -18,6 +18,14 @@ def processQuery(service, engineID, query, precision):
     if (len(res.get('items')) < 10):
         print("Less than 10 documents returned.  The program will terminate now.")
         return
+
+    print("Parameters:")
+    print("Client key  = " + api)
+    print("Engine key  = " + engineID)
+    print("Query       = " + query)
+    print("Precision   = " + precision)
+    print("Google Search Results:")
+    print("======================")
 
     while (True):
         counter = 1
@@ -43,6 +51,7 @@ def processQuery(service, engineID, query, precision):
             print("Title:", currentTitle)
             print("Summary:", currentDescription)
             print("]")
+            print("")
             
 
             prompt = input("Relevant (Y/N)?")
@@ -59,17 +68,17 @@ def processQuery(service, engineID, query, precision):
 
             createBigrams(dictOfBigrams, currentTitle)
             createBigrams(dictOfBigrams, currentDescription)
-
-
-            print("")
             counter += 1
 
-        if (relevanceCounter/counter >= float(precision)):
+        if (relevanceCounter/(counter-1) >= float(precision)):
             precisionReached = True
-            print('Success!')
+            print("======================")
+            print("FEEDBACK SUMMARY")
+            print("Query " + query)
+            print("Precision " + str(relevanceCounter/(counter-1)))
+            print("Desired precision reached, done")
             return
-        
-        print(dictOfBigrams)
+
         relevanttfIdfVectorizer=TfidfVectorizer(use_idf=True, stop_words=constants.STOP_WORDS)
         nonrelevanttfIdfVectorizer=TfidfVectorizer(use_idf=True, stop_words=constants.STOP_WORDS)
 
@@ -86,8 +95,29 @@ def processQuery(service, engineID, query, precision):
 
         top_two_words = getTopTwoWords(sortedKeys, queryWords)
 
-        orderWords(top_two_words, dictOfBigrams)
+        sortedKeys = {key: value for key, value in sortedKeys}
+
+        #orderWords(top_two_words, dictOfBigrams)
+        originalQuery = query
         query += " " + top_two_words[0] + " " + top_two_words[1]
+        orderWords(query, dictOfBigrams, sortedKeys)
+
+        print("======================")
+        print("FEEDBACK SUMMARY")
+        print("Query " + originalQuery)
+        print("Precision " + str (relevanceCounter/(counter-1)))
+        print("Still below the desired precision of " + str(precision))
+        print("Indexing results ....")
+        print("Indexing results ....")
+        print("Augmenting by  " + top_two_words[0] + " " + top_two_words[1])
+        print("Parameters:")
+        print("Client key  = " + api)
+        print("Engine key  = " + engineID)
+        print("Query       = " + query)
+        print("Precision   = " + precision)
+        print("Google Search Results:")
+        print("======================")
+
         res = service.cse().list(q = query, cx = engineID,).execute()
 
 def createBigrams(dictOfBigrams, document):
@@ -121,6 +151,16 @@ def getTopTwoWords(sortedKeys, queryWords):
             break
     return top_two_words
 
-def orderWords(top_two_words, dictOfBigrams):
-    if (top_two_words[1], top_two_words[0])  in dictOfBigrams and dictOfBigrams[(top_two_words[1], top_two_words[0])] > dictOfBigrams[(top_two_words[0], top_two_words[1])]:
-            top_two_words = top_two_words[::-1]
+def orderWords(query, dictOfBigrams, sortedKeys):
+    # if (top_two_words[1], top_two_words[0])  in dictOfBigrams and dictOfBigrams[(top_two_words[1], top_two_words[0])] > dictOfBigrams[(top_two_words[0], top_two_words[1])]:
+    #         top_two_words = top_two_words[::-1]
+    queryList = query.split(" ")
+    queryList.sort(key = lambda x: sortedKeys[x], reverse= True)
+    print(queryList)
+    for i in range(1, len(queryList)):
+        if sortedKeys[queryList[i]] == sortedKeys[queryList[i-1]]:
+            if (queryList[i], queryList[i-1]) in dictOfBigrams and dictOfBigrams[(queryList[i], queryList[i-1])] > dictOfBigrams[(queryList[i-1], queryList[i])]:
+                temp = queryList[i]
+                queryList[i] = queryList[i-1]
+                queryList[i-1] = temp
+    query = " ".join(queryList)
