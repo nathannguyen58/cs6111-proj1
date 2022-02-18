@@ -85,13 +85,9 @@ def processQuery(service, engineID, query, precision):
         sortedKeys = rocchio(queryVector, relevantDocumentVector, relevantDocumentDataSet, nonrelevantVector, nonrelevantDocumentDataSet)
 
         top_two_words = getTopTwoWords(sortedKeys, queryWords)
-        
-        print(type((top_two_words[1], top_two_words[0])))
 
         orderWords(top_two_words, dictOfBigrams)
-        print(sortedKeys)
         query += " " + top_two_words[0] + " " + top_two_words[1]
-        print(query)
         res = service.cse().list(q = query, cx = engineID,).execute()
 
 def createBigrams(dictOfBigrams, document):
