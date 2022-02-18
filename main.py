@@ -2,8 +2,6 @@ import pprint
 import sys
 import utils
 from googleapiclient.discovery import build
-
-nltk.download('punkt')
     
 
 def main():

@@ -1,6 +1,9 @@
 import nltk
 from sklearn.feature_extraction.text import TfidfTransformer, TfidfVectorizer
 from collections import defaultdict
+import constants
+
+nltk.download('punkt')
 
 def processQuery(service, engineID, query, precision):
     queryWords = set(query.lower().split(' '))  #tracks the words already in the query
@@ -81,7 +84,7 @@ def processQuery(service, engineID, query, precision):
         
         sortedKeys = rocchio(queryVector, relevantDocumentVector, relevantDocumentDataSet, nonrelevantVector, nonrelevantDocumentDataSet)
 
-        top_two_words = getTopTwoWords(sortedKeys)
+        top_two_words = getTopTwoWords(sortedKeys, queryWords)
         
         print(type((top_two_words[1], top_two_words[0])))
 
@@ -99,12 +102,12 @@ def createBigrams(dictOfBigrams, document):
 
 def createTFIDFVectorList(queryVector, documentVector, documentVectorizer, documentTfidf):
     for i in range(len(documentTfidf[0].T.todense())):
-        relevantVector[documentVectorizer.get_feature_names()[i]] = documentTfidf[0].T.todense()[i].tolist()[0][0]
+        documentVector[documentVectorizer.get_feature_names()[i]] = documentTfidf[0].T.todense()[i].tolist()[0][0]
 
         if documentVectorizer.get_feature_names()[i] not in queryVector:
             queryVector[documentVectorizer.get_feature_names()[i]] = 0
 
-def rocchio(queryVector, relevantDocumentVector, relevantDocumentDataSet, nonrelevantVector, nonrelevantDocumentDataSet):
+def rocchio(queryVector, relevantVector, relevantDocumentDataSet, nonrelevantVector, nonrelevantDocumentDataSet):
     for word in queryVector.keys():
         queryVector[word] = constants.ALPHA * queryVector[word] + (constants.BETA * relevantVector[word])/len(relevantDocumentDataSet) - (constants.GAMMA * nonrelevantVector[word])/len(nonrelevantDocumentDataSet)
         if queryVector[word] < 0:
@@ -112,7 +115,7 @@ def rocchio(queryVector, relevantDocumentVector, relevantDocumentDataSet, nonrel
         
     return sorted([(word, weight) for word, weight in queryVector.items()], key = lambda x: x[1], reverse = True)
 
-def getTopTwoWords(sortedKeys):
+def getTopTwoWords(sortedKeys, queryWords):
     top_two_words = []
     for tuple in sortedKeys:
         if tuple[0] not in queryWords:
