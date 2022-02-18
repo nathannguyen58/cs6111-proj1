@@ -5,17 +5,21 @@ import constants
 
 nltk.download('punkt')
 
+
+'''
+processQuery: executes searches with query expansion until the desired precision inputted by user has been reached
+'''
 def processQuery(service, engineID, query, precision, api):
     queryWords = set(query.lower().split(' '))  #tracks the words already in the query
     queryVector = defaultdict(int)      #tracks the current query vector, key: word, value: tf_idf weight
 
 
-    for word in queryWords:
+    for word in queryWords:  #initialize the initial query vector
         queryVector[word] += 1
 
     res = service.cse().list(q = query, cx = engineID,).execute()
 
-    if (len(res.get('items')) < 10):
+    if (len(res.get('items')) < 10):   #if there are less than 10 items returned the first time
         print("Less than 10 documents returned.  The program will terminate now.")
         return
 
@@ -28,19 +32,22 @@ def processQuery(service, engineID, query, precision, api):
     print("======================")
 
     while (True):
-        counter = 1
+        counter = 1   #tracks the number of the current result
 
-        relevanceCounter = 0
+        relevanceCounter = 0  #tracks the number of relevant results
 
-        dictOfBigrams = defaultdict(int)
+        dictOfBigrams = defaultdict(int)   #hashtable used to track frequency of bigrams
 
-        relevantDocumentVector = defaultdict(int)
-        nonrelevantDocumentVector = defaultdict(int)
+        relevantDocumentVector = defaultdict(int)   #vector for relevant documents
+        nonrelevantDocumentVector = defaultdict(int)  #vector for non-relevant documents
         
-        relevantDocumentDataSet = []
-        nonrelevantDocumentDataSet = []
+        relevantDocumentDataSet = []      #list of titles and descriptions of relevant documents
+        nonrelevantDocumentDataSet = []   #list of titles and descriptiions of non-relevant documents
 
-        for result in res.get('items'):
+        '''
+        iterate through each result returned by the search and receive input from user to distinguish relevant from non-relevant documents
+        '''
+        for result in res.get('items'):    
             currentTitle = result.get('title')
             currentUrl = result.get('formattedUrl')
             currentDescription = result.get('snippet')
@@ -70,7 +77,7 @@ def processQuery(service, engineID, query, precision, api):
             createBigrams(dictOfBigrams, currentDescription)
             counter += 1
 
-        if (relevanceCounter/(counter-1) >= float(precision)):
+        if (relevanceCounter/(counter-1) >= float(precision)):   #if the desired precision has been reached, terminate the program
             precisionReached = True
             print("======================")
             print("FEEDBACK SUMMARY")
@@ -79,28 +86,29 @@ def processQuery(service, engineID, query, precision, api):
             print("Desired precision reached, done")
             return
 
-        relevanttfIdfVectorizer=TfidfVectorizer(use_idf=True, stop_words=constants.STOP_WORDS)
-        nonrelevanttfIdfVectorizer=TfidfVectorizer(use_idf=True, stop_words=constants.STOP_WORDS)
-
-        relevantDocumenttfIdf = relevanttfIdfVectorizer.fit_transform(relevantDocumentDataSet)
+        '''
+        Lines 92-95: boilerplate code used to initialize tf_idf objects for scoring both relevant and non-relevant documents
+        '''
+        relevanttfIdfVectorizer=TfidfVectorizer(use_idf=True, stop_words=constants.STOP_WORDS)  
+        nonrelevanttfIdfVectorizer=TfidfVectorizer(use_idf=True, stop_words=constants.STOP_WORDS)  
+        relevantDocumenttfIdf = relevanttfIdfVectorizer.fit_transform(relevantDocumentDataSet)      
         nonrelevantDocumenttfIdf = nonrelevanttfIdfVectorizer.fit_transform(nonrelevantDocumentDataSet)
 
-        relevantVector = defaultdict(int)
-        nonrelevantVector = defaultdict(int)
+        relevantVector = defaultdict(int)    #vector for relevant documents
+        nonrelevantVector = defaultdict(int)  #vector for non-relevant documents
 
         createTFIDFVectorList(queryVector, relevantDocumentVector, relevanttfIdfVectorizer, relevantDocumenttfIdf)
         createTFIDFVectorList(queryVector, nonrelevantDocumentVector, nonrelevanttfIdfVectorizer, nonrelevantDocumenttfIdf)
         
-        sortedKeys = rocchio(queryVector, relevantDocumentVector, relevantDocumentDataSet, nonrelevantVector, nonrelevantDocumentDataSet)
+        sortedKeys = rocchio(queryVector, relevantDocumentVector, relevantDocumentDataSet, nonrelevantVector, nonrelevantDocumentDataSet) #execute rocchio's algorithm using current query vector, relevant document vector, and non-relevant document vector
 
         top_two_words = getTopTwoWords(sortedKeys, queryWords)
 
-        sortedKeys = {key: value for key, value in sortedKeys}
+        sortedKeys = {key: value for key, value in sortedKeys}  #convert sortedKeys list to a dictionary, mapping each word to its respective tf_idf values
 
-        #orderWords(top_two_words, dictOfBigrams)
         originalQuery = query
-        query += " " + top_two_words[0] + " " + top_two_words[1]
-        orderWords(query, dictOfBigrams, sortedKeys)
+        query += " " + top_two_words[0] + " " + top_two_words[1]   #append the two words with the highest weight in the current query vector to the current query
+        orderWords(query, dictOfBigrams, sortedKeys) 
 
         print("======================")
         print("FEEDBACK SUMMARY")
@@ -120,12 +128,19 @@ def processQuery(service, engineID, query, precision, api):
 
         res = service.cse().list(q = query, cx = engineID,).execute()
 
+'''
+append all the bigrams in the inputted documents to the dictionary of bigrams
+'''
+
 def createBigrams(dictOfBigrams, document):
     nltk_tokens = nltk.word_tokenize(document)
 
     for tuple in list(nltk.bigrams(nltk_tokens)):
         dictOfBigrams[tuple] += 1
 
+'''
+process the tf_idf objects and convert to a dictionary of word keys and tf_idf score values
+'''
 def createTFIDFVectorList(queryVector, documentVector, documentVectorizer, documentTfidf):
     for i in range(len(documentTfidf[0].T.todense())):
         documentVector[documentVectorizer.get_feature_names()[i]] = documentTfidf[0].T.todense()[i].tolist()[0][0]
@@ -133,6 +148,9 @@ def createTFIDFVectorList(queryVector, documentVector, documentVectorizer, docum
         if documentVectorizer.get_feature_names()[i] not in queryVector:
             queryVector[documentVectorizer.get_feature_names()[i]] = 0
 
+'''
+execute rocchio's algorithm using the constants and return a sorted list of tuples containing words and their respective weights in the updated query vector
+'''
 def rocchio(queryVector, relevantVector, relevantDocumentDataSet, nonrelevantVector, nonrelevantDocumentDataSet):
     for word in queryVector.keys():
         queryVector[word] = constants.ALPHA * queryVector[word] + (constants.BETA * relevantVector[word])/len(relevantDocumentDataSet) - (constants.GAMMA * nonrelevantVector[word])/len(nonrelevantDocumentDataSet)
@@ -141,6 +159,9 @@ def rocchio(queryVector, relevantVector, relevantDocumentDataSet, nonrelevantVec
         
     return sorted([(word, weight) for word, weight in queryVector.items()], key = lambda x: x[1], reverse = True)
 
+'''
+retrieve the top two words by vector weight not already in the previous query 
+'''
 def getTopTwoWords(sortedKeys, queryWords):
     top_two_words = []
     for tuple in sortedKeys:
@@ -151,6 +172,10 @@ def getTopTwoWords(sortedKeys, queryWords):
             break
     return top_two_words
 
+'''
+order words in descending order by their respective weights in the query vector. 
+if there happens to be a tie, swap pairs of words based on the highest frequency of their bigram pairs
+'''
 def orderWords(query, dictOfBigrams, sortedKeys):
     # if (top_two_words[1], top_two_words[0])  in dictOfBigrams and dictOfBigrams[(top_two_words[1], top_two_words[0])] > dictOfBigrams[(top_two_words[0], top_two_words[1])]:
     #         top_two_words = top_two_words[::-1]
